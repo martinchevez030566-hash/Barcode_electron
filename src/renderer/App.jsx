@@ -1,6 +1,25 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 
 function App() {
+  const [plantillas, setPlantillas] = useState([])
+  const [config, setConfig] = useState('')
+  const [status, setStatus] = useState('Conectando...')
+
+  useEffect(() => {
+    async function cargarDatos() {
+      try {
+        const pl = await window.electronAPI.getPlantillas()
+        const cfg = await window.electronAPI.getConfig('empresa_nombre')
+        setPlantillas(pl)
+        setConfig(cfg)
+        setStatus('✅ Base de datos conectada')
+      } catch (error) {
+        setStatus('❌ Error: ' + error.message)
+      }
+    }
+    cargarDatos()
+  }, [])
+
   return (
     <div style={{
       display: 'flex',
@@ -9,23 +28,42 @@ function App() {
       justifyContent: 'center',
       height: '100vh',
       background: '#f8f9fa',
-      fontFamily: 'sans-serif'
+      fontFamily: 'sans-serif',
+      gap: '16px'
     }}>
-      <h1 style={{ fontSize: '2rem', color: '#1a1a2e', marginBottom: '8px' }}>
+      <h1 style={{ fontSize: '2rem', color: '#1a1a2e' }}>
         MPCL — Códigos de Barra
       </h1>
-      <p style={{ color: '#666', fontSize: '1rem' }}>
-        Sistema de impresión de etiquetas
-      </p>
+
       <div style={{
-        marginTop: '32px',
-        padding: '16px 32px',
+        padding: '12px 24px',
         background: '#1a1a2e',
         color: 'white',
-        borderRadius: '8px',
-        fontSize: '0.9rem'
+        borderRadius: '8px'
       }}>
-        Fase 1 completada — Electron + React funcionando
+        {status}
+      </div>
+
+      <div style={{ fontSize: '0.9rem', color: '#444' }}>
+        Empresa: <strong>{config}</strong>
+      </div>
+
+      <div style={{ width: '400px' }}>
+        <p style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+          Plantillas cargadas: {plantillas.length}
+        </p>
+        {plantillas.map(p => (
+          <div key={p.id} style={{
+            padding: '8px 12px',
+            background: 'white',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            marginBottom: '6px',
+            fontSize: '0.85rem'
+          }}>
+            {p.nombre} — {p.ancho_mm}mm × {p.alto_mm}mm
+          </div>
+        ))}
       </div>
     </div>
   )
