@@ -188,6 +188,116 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+ipcMain.handle("dialog:openFile", async () => {
+  const { dialog } = require("electron");
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Seleccionar archivo Excel",
+    filters: [{ name: "Excel", extensions: ["xlsx", "xls"] }],
+    properties: ["openFile"]
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0];
+});
+ipcMain.handle("excel:getSheets", async (_, filePath) => {
+  const ExcelJS = require("exceljs");
+  const os = require("os");
+  const tmpPath = path.join(os.tmpdir(), "mpcl_import_" + Date.now() + ".xlsx");
+  fs.copyFileSync(filePath, tmpPath);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(tmpPath);
+  fs.unlinkSync(tmpPath);
+  return workbook.worksheets.map((ws, i) => ({ index: i, name: ws.name }));
+});
+ipcMain.handle("excel:preview", async (_, filePath, sheetIndex) => {
+  const ExcelJS = require("exceljs");
+  const os = require("os");
+  const tmpPath = path.join(os.tmpdir(), "mpcl_import_" + Date.now() + ".xlsx");
+  fs.copyFileSync(filePath, tmpPath);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(tmpPath);
+  fs.unlinkSync(tmpPath);
+  const worksheet = workbook.worksheets[sheetIndex];
+  const rows = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber <= 6) rows.push(row.values.slice(1));
+  });
+  if (rows.length === 0) return { error: "La hoja está vacía" };
+  const headers = rows[0].map((h) => String(h || "").trim().toLowerCase());
+  const required = ["codigo", "nombre", "precio", "unidad"];
+  const missing = required.filter((r) => !headers.includes(r));
+  if (missing.length > 0) {
+    return { error: `Faltan columnas requeridas: ${missing.join(", ")}. La fila 1 debe contener: codigo, nombre, precio, unidad` };
+  }
+  const colMap = {
+    codigo: headers.indexOf("codigo"),
+    nombre: headers.indexOf("nombre"),
+    precio: headers.indexOf("precio"),
+    unidad: headers.indexOf("unidad")
+  };
+  return { rows: rows.slice(1, 6), colMap, headers };
+});
+ipcMain.handle("excel:import", async (_, filePath, sheetIndex) => {
+  const ExcelJS = require("exceljs");
+  const os = require("os");
+  const tmpPath = path.join(os.tmpdir(), "mpcl_import_" + Date.now() + ".xlsx");
+  fs.copyFileSync(filePath, tmpPath);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(tmpPath);
+  fs.unlinkSync(tmpPath);
+  const worksheet = workbook.worksheets[sheetIndex];
+  let nuevos = 0, actualizados = 0, sinCambios = 0, errores = 0;
+  const allRows = [];
+  worksheet.eachRow((row, rowNumber) => {
+    allRows.push(row.values.slice(1));
+  });
+  if (allRows.length === 0) return { error: "Hoja vacía" };
+  const headers = allRows[0].map((h) => String(h || "").trim().toLowerCase());
+  const colMap = {
+    codigo: headers.indexOf("codigo"),
+    nombre: headers.indexOf("nombre"),
+    precio: headers.indexOf("precio"),
+    unidad: headers.indexOf("unidad")
+  };
+  for (let i = 1; i < allRows.length; i++) {
+    try {
+      const values = allRows[i];
+      const codigo = String(values[colMap.codigo] || "").trim();
+      const nombre = String(values[colMap.nombre] || "").trim();
+      const unidad = String(values[colMap.unidad] || "UND").trim();
+      const precio = parseFloat(String(values[colMap.precio] || "0").replace(/[^0-9.]/g, "")) || 0;
+      if (!codigo || !nombre) continue;
+      const r = db.exec("SELECT id, nombre, precio, unidad FROM productos WHERE codigo = ?", [codigo]);
+      if (r.length === 0 || r[0].values.length === 0) {
+        db.run(
+          `INSERT INTO productos (codigo, nombre, precio, unidad) VALUES (?, ?, ?, ?)`,
+          [codigo, nombre, precio, unidad]
+        );
+        nuevos++;
+      } else {
+        const { columns, values: vals } = r[0];
+        const existing = {};
+        columns.forEach((c, idx) => {
+          existing[c] = vals[0][idx];
+        });
+        const changed = existing.nombre !== nombre || Number(existing.precio) !== precio || existing.unidad !== unidad;
+        if (changed) {
+          db.run(
+            `UPDATE productos SET nombre=?, precio=?, unidad=?, updated_at=datetime('now') WHERE codigo=?`,
+            [nombre, precio, unidad, codigo]
+          );
+          actualizados++;
+        } else {
+          sinCambios++;
+        }
+      }
+    } catch (e) {
+      errores++;
+    }
+  }
+  const data = db.export();
+  fs.writeFileSync(path.join(app.getPath("userData"), "productos.db"), Buffer.from(data));
+  return { nuevos, actualizados, sinCambios, errores };
+});
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

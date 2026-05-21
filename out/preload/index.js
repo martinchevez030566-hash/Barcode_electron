@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getConfig: (clave) => ipcRenderer.invoke("config:get", clave),
   setConfig: (k, v) => ipcRenderer.invoke("config:set", k, v),
   openFileDialog: () => ipcRenderer.invoke("dialog:openFile"),
-  importExcel: (filePath) => ipcRenderer.invoke("excel:import", filePath),
-  printLabel: (data) => ipcRenderer.invoke("print:label", data),
-  getPrinters: () => ipcRenderer.invoke("print:getPrinters")
+  getSheets: (filePath) => ipcRenderer.invoke("excel:getSheets", filePath),
+  getPreview: (filePath, sheetIndex) => ipcRenderer.invoke("excel:preview", filePath, sheetIndex),
+  importExcel: (filePath, sheetIndex, colMap) => ipcRenderer.invoke("excel:import", filePath, sheetIndex, colMap)
 });
