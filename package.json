@@ -14,20 +14,18 @@
     "directories": {
       "output": "release"
     },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
     "win": {
       "target": [
         {
           "target": "portable",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ]
-    },
-    "files": [
-      "out/**/*",
-      "resources/**/*"
-    ]
+    }
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",
