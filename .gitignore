@@ -30,3 +30,17 @@ dist/
 *.exe
 *.msi
 
+
+# Build artifacts - NO SUBIR A GIT
+release/
+out/
+dist/
+build/
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.asar
+node_modules/
+.env
+*.log
